@@ -1,15 +1,33 @@
 from playwright.sync_api import sync_playwright
 import time
 import sys
+import os
 import csv
 import json
 import re
+import logging
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
+from zoneinfo import ZoneInfo
+
+from log_config import setup_logging, get_log_file_path, send_telegram_summary
 
 # Настройка stdout для корректного вывода Юникода
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(line_buffering=True)
+
+logger = logging.getLogger(__name__)
+
+
+def _run_date():
+    """Дата запуска по RUN_TZ (по умолчанию Asia/Irkutsk)."""
+    tz_name = os.environ.get("RUN_TZ", "Asia/Irkutsk")
+    try:
+        return datetime.now(ZoneInfo(tz_name)).date()
+    except Exception:
+        return date.today()
+
 
 class TvilRoomsDailyParser:
     def __init__(self):
@@ -19,10 +37,12 @@ class TvilRoomsDailyParser:
         self.all_rooms = []
         self.current_dir = Path(__file__).parent
     
-    def _read_hotels_from_csv(self, csv_path=None):
-        """Читает список отелей из CSV файла"""
+    def _read_hotels_from_csv(self, csv_path=None, run_date=None):
+        """Читает список отелей из CSV файла (по умолчанию tables/hotels/{date}.csv)."""
         if csv_path is None:
-            csv_path = self.current_dir / 'output' / 'tvil_hotels.csv'
+            if run_date is None:
+                run_date = _run_date()
+            csv_path = self.current_dir / 'tables' / 'hotels' / f'{run_date.isoformat()}.csv'
         else:
             csv_path = Path(csv_path)
         
@@ -34,7 +54,7 @@ class TvilRoomsDailyParser:
                 for row in reader:
                     hotels.append(row)
         except Exception as e:
-            print(f"Ошибка при чтении CSV: {e}")
+            logger.error("Ошибка при чтении CSV %s: %s", csv_path, e)
         
         return hotels
     
@@ -90,7 +110,7 @@ class TvilRoomsDailyParser:
             
             return descriptions
         except Exception as e:
-            print(f"Ошибка при получении описаний номеров: {e}")
+            logger.error("Ошибка при получении описаний номеров: %s", e)
             return {}
     
     def _calculate_rooms(self, page, hotel_id, arrival_date, departure_date):
@@ -162,7 +182,7 @@ class TvilRoomsDailyParser:
             
             return json_data
         except Exception as e:
-            print(f"Ошибка при получении данных о номерах: {e}")
+            logger.error("Ошибка при получении данных о номерах: %s", e)
             return None
     
     def _extract_all_rooms(self, text):
@@ -265,18 +285,17 @@ class TvilRoomsDailyParser:
         hotel_name = hotel_row.get('name', hotel_id)
         
         if not hotel_id:
-            print(f"Пропускаю {hotel_name}: не найден tvil_hotel_id")
+            logger.warning("Пропускаю %s: не найден tvil_hotel_id", hotel_name)
             return []
         
-        print(f"Обрабатываю отель: {hotel_name} (ID: {hotel_id})")
+        logger.info("Обрабатываю отель: %s (ID: %s)", hotel_name, hotel_id)
         
         # Пытаемся перейти на страницу отеля для получения cookies (не критично, если не получится)
         try:
             page.goto(hotel_url, wait_until='domcontentloaded', timeout=15000)
             page.wait_for_timeout(1000)
         except Exception as e:
-            # Не критичная ошибка - продолжаем выполнение
-            print(f"Предупреждение: не удалось перейти на страницу отеля {hotel_name}, продолжаю...")
+            logger.warning("Не удалось перейти на страницу отеля %s, продолжаю: %s", hotel_name, e)
         
         # Получаем описания номеров
         descriptions = self._get_room_descriptions(page, hotel_id)
@@ -287,7 +306,7 @@ class TvilRoomsDailyParser:
         time.sleep(0.5)
         
         if not calculate_data:
-            print(f"Не удалось получить данные для {hotel_name}")
+            logger.warning("Не удалось получить данные для %s", hotel_name)
             return []
         
         # Извлекаем данные о номерах
@@ -295,26 +314,29 @@ class TvilRoomsDailyParser:
         
         if rooms_data:
             rooms_count = len([r for r in rooms_data if r.get('room_id')])
-            print(f"Найдено {rooms_count} номеров для {hotel_name}")
+            logger.info("Найдено %s номеров для %s", rooms_count, hotel_name)
         
         return rooms_data
     
-    def get_all_rooms(self, csv_path=None):
-        """Основная функция для парсинга номеров отелей из списка"""
-        today = date.today()
+    def get_all_rooms(self, csv_path=None, run_date=None):
+        """Основная функция для парсинга номеров отелей из списка."""
+        if run_date is None:
+            run_date = _run_date()
+        today = run_date
         arrival_date = today + timedelta(days=1)
         departure_date = today + timedelta(days=2)
         
-        print(f"Даты бронирования: {arrival_date.strftime('%d.%m.%Y')} - {departure_date.strftime('%d.%m.%Y')}")
+        logger.info("Запуск парсера номеров...")
+        logger.info("Даты бронирования: %s - %s", arrival_date.strftime('%d.%m.%Y'), departure_date.strftime('%d.%m.%Y'))
         
         # Читаем список отелей
-        hotels = self._read_hotels_from_csv(csv_path)
+        hotels = self._read_hotels_from_csv(csv_path, run_date)
         
         if not hotels:
-            print("\nНе удалось загрузить список отелей.")
+            logger.error("Не удалось загрузить список отелей.")
             return []
         
-        print(f"\nЗагружено {len(hotels)} отелей для обработки")
+        logger.info("Загружено %s отелей для обработки", len(hotels))
         
         # Обрабатываем каждый отель через Playwright
         with sync_playwright() as p:
@@ -325,14 +347,12 @@ class TvilRoomsDailyParser:
             )
             page = context.new_page()
             
-            # Переходим на главную страницу для получения cookies
-            print("Перехожу на страницу tvil.ru...")
+            logger.info("Перехожу на страницу tvil.ru...")
             page.goto('https://tvil.ru/city/irkutskaya-oblast/?gp%5Bentity_type%5D%5B0%5D=1', wait_until='networkidle', timeout=30000)
             page.wait_for_timeout(2000)
             
-            # Обрабатываем каждый отель
             for idx, hotel_row in enumerate(hotels, 1):
-                print(f"\n--- Отель {idx} из {len(hotels)} ---")
+                logger.info("--- Отель %s из %s ---", idx, len(hotels))
                 rooms_data = self._process_hotel(page, hotel_row, arrival_date, departure_date)
                 if rooms_data:
                     self.all_rooms.extend(rooms_data)
@@ -340,21 +360,23 @@ class TvilRoomsDailyParser:
             browser.close()
         
         if self.all_rooms:
-            self._save_to_csv()
-            print(f"\nПарсинг завершён. Всего обработано {len(self.all_rooms)} номеров.")
+            self._save_to_csv(run_date)
+            logger.info("Парсинг завершён. Всего обработано %s номеров.", len(self.all_rooms))
         else:
-            print("\nНе удалось извлечь данные о номерах.")
+            logger.warning("Не удалось извлечь данные о номерах.")
         
         return self.all_rooms
     
-    def _save_to_csv(self):
-        """Сохранение данных номеров в CSV файл"""
+    def _save_to_csv(self, run_date=None):
+        """Сохранение данных номеров в CSV файл (tables/rooms/YYYY-MM-DD.csv)."""
         if not self.all_rooms:
             return
+        if run_date is None:
+            run_date = _run_date()
         
-        output_dir = self.current_dir / 'output'
-        output_dir.mkdir(exist_ok=True)
-        csv_filename = output_dir / 'tvil_rooms.csv'
+        output_dir = self.current_dir / 'tables' / 'rooms'
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_filename = output_dir / f'{run_date.isoformat()}.csv'
         
         fieldnames = ['tvil_hotel_id', 'room_name', 'room_id', 'free_rooms', 'all_rooms', 'room_capacity', 'price', 'url']
         
@@ -364,10 +386,14 @@ class TvilRoomsDailyParser:
                 writer.writeheader()
                 for room in self.all_rooms:
                     writer.writerow(room)
-            print(f"Сохранено {len(self.all_rooms)} номеров в {csv_filename}")
+            logger.info("Сохранено %s номеров в %s", len(self.all_rooms), csv_filename)
         except Exception as e:
-            print(f"Ошибка при сохранении CSV: {e}")
+            logger.error("Ошибка при сохранении CSV: %s", e)
+
 
 if __name__ == "__main__":
+    run_date = _run_date()
+    setup_logging(log_file=get_log_file_path(run_date))
     parser = TvilRoomsDailyParser()
     parser.get_all_rooms()
+    send_telegram_summary(f"Tvil: парсер номеров завершён. Номеров: {len(parser.all_rooms)}. Дата: {run_date}.")

@@ -1,15 +1,33 @@
 from playwright.sync_api import sync_playwright
 import time
 import sys
+import os
 import csv
 import json
+import logging
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
+from zoneinfo import ZoneInfo
 from urllib.parse import urlencode
 
-# Настройка stdout для корректного вывода Юникода
+from log_config import setup_logging, get_log_file_path, send_telegram_summary
+
+# Настройка stdout для корректного вывода Юникода и сброс буфера в CI
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(line_buffering=True)
+
+logger = logging.getLogger(__name__)
+
+
+def _run_date():
+    """Дата запуска по RUN_TZ (по умолчанию Asia/Irkutsk)."""
+    tz_name = os.environ.get("RUN_TZ", "Asia/Irkutsk")
+    try:
+        return datetime.now(ZoneInfo(tz_name)).date()
+    except Exception:
+        return date.today()
+
 
 class TvilHotelsDailyParser:
     def __init__(self):
@@ -20,11 +38,12 @@ class TvilHotelsDailyParser:
     
     def get_all_hotels_list(self):
         """Основная функция для парсинга списка отелей на следующие 2 дня"""
-        today = date.today()
+        logger.info("Запуск парсера отелей...")
+        today = _run_date()
         arrival_date = today + timedelta(days=1)
         departure_date = today + timedelta(days=2)
         
-        print(f"Даты бронирования: {arrival_date.strftime('%d.%m.%Y')} - {departure_date.strftime('%d.%m.%Y')}")
+        logger.info("Даты бронирования: %s - %s", arrival_date.strftime('%d.%m.%Y'), departure_date.strftime('%d.%m.%Y'))
         
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -34,8 +53,7 @@ class TvilHotelsDailyParser:
             )
             page = context.new_page()
             
-            # Переходим на страницу tvil.ru для получения cookies
-            print("Перехожу на страницу tvil.ru...")
+            logger.info("Перехожу на страницу tvil.ru...")
             page.goto('https://tvil.ru/city/irkutskaya-oblast/?gp%5Bentity_type%5D%5B0%5D=1', wait_until='networkidle', timeout=30000)
             page.wait_for_timeout(3000)
             
@@ -49,9 +67,9 @@ class TvilHotelsDailyParser:
         
         if self.all_hotels:
             self._save_to_csv()
-            print(f"\nПарсинг завершён. Всего обработано {len(self.all_hotels)} отелей.")
+            logger.info("Парсинг завершён. Всего обработано %s отелей.", len(self.all_hotels))
         else:
-            print("\nНе удалось извлечь данные об отелях.")
+            logger.warning("Не удалось извлечь данные об отелях.")
         
         return self.all_hotels
     
@@ -80,20 +98,20 @@ class TvilHotelsDailyParser:
         page_number = 1
         
         while current_url:
-            print(f"\n--- Страница {page_number} ---")
+            logger.info("--- Страница %s ---", page_number)
             
             try:
                 json_data = self._make_api_request(page, current_url)
                 
                 if not json_data:
-                    print(f"Не удалось получить данные со страницы {page_number}")
+                    logger.warning("Не удалось получить данные со страницы %s", page_number)
                     break
                 
                 # Извлекаем отели из JSON
                 extracted_hotels = self._extract_hotels_from_json(json_data)
                 if extracted_hotels:
                     self.all_hotels.extend(extracted_hotels)
-                    print(f"Извлечено {len(extracted_hotels)} отелей. Всего: {len(self.all_hotels)}")
+                    logger.info("Извлечено %s отелей. Всего: %s", len(extracted_hotels), len(self.all_hotels))
                 
                 # Проверяем наличие следующей страницы
                 links = json_data.get('links', {})
@@ -114,14 +132,14 @@ class TvilHotelsDailyParser:
                     page_number += 1
                     time.sleep(0.5)
                 else:
-                    print("Достигнута последняя страница.")
+                    logger.info("Достигнута последняя страница.")
                     break
                     
             except Exception as e:
-                print(f"Ошибка при парсинге страницы {page_number}: {e}")
+                logger.error("Ошибка при парсинге страницы %s: %s", page_number, e)
                 break
         
-        print(f"\n=== Всего собрано отелей со всех страниц: {len(self.all_hotels)} ===")
+        logger.info("Всего собрано отелей со всех страниц: %s", len(self.all_hotels))
     
     def _make_api_request(self, page, api_url):
         """Выполнение API запроса через JavaScript на странице"""
@@ -163,7 +181,7 @@ class TvilHotelsDailyParser:
             
             return json_data
         except Exception as e:
-            print(f"Ошибка при выполнении API запроса: {e}")
+            logger.error("Ошибка при выполнении API запроса: %s", e)
             return None
     
     def _extract_hotels_from_json(self, json_data):
@@ -224,9 +242,10 @@ class TvilHotelsDailyParser:
         if not self.all_hotels:
             return
         
-        output_dir = self.current_dir / 'output'
-        output_dir.mkdir(exist_ok=True)
-        csv_filename = output_dir / 'tvil_hotels.csv'
+        run_date = _run_date()
+        output_dir = self.current_dir / 'tables' / 'hotels'
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_filename = output_dir / f'{run_date.isoformat()}.csv'
         
         fieldnames = ['city', 'tvil_hotel_id', 'name', 'address', 'url', 'rooms_number']
         
@@ -236,10 +255,14 @@ class TvilHotelsDailyParser:
                 writer.writeheader()
                 for hotel in self.all_hotels:
                     writer.writerow(hotel)
-            print(f"Сохранено {len(self.all_hotels)} отелей в {csv_filename}")
+            logger.info("Сохранено %s отелей в %s", len(self.all_hotels), csv_filename)
         except Exception as e:
-            print(f"Ошибка при сохранении CSV: {e}")
+            logger.error("Ошибка при сохранении CSV: %s", e)
+
 
 if __name__ == "__main__":
+    run_date = _run_date()
+    setup_logging(log_file=get_log_file_path(run_date))
     parser = TvilHotelsDailyParser()
     parser.get_all_hotels_list()
+    send_telegram_summary(f"Tvil: парсер отелей завершён. Отелей: {len(parser.all_hotels)}. Дата: {run_date}.")

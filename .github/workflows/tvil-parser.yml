@@ -1,0 +1,67 @@
+name: Tvil Parser
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  parse-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install playwright requests
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Run Tvil hotels parser
+        run: python -u tvil_hotels.py
+        env:
+          RUN_TZ: Asia/Irkutsk
+          PYTHONUNBUFFERED: 1
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Run Tvil rooms parser
+        run: python -u tvil_rooms.py
+        env:
+          RUN_TZ: Asia/Irkutsk
+          PYTHONUNBUFFERED: 1
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Run Tvil statistic
+        run: python -u tvil_statistic.py
+        env:
+          RUN_TZ: Asia/Irkutsk
+          PYTHONUNBUFFERED: 1
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Commit and push daily tables and logs
+        run: |
+          git add tables/ logs/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Tvil daily data - $(date +'%Y-%m-%d %H:%M:%S UTC')"
+            git push
+          fi
