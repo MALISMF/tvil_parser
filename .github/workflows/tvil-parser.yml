@@ -65,3 +65,26 @@ jobs:
             git commit -m "Tvil daily data - $(date +'%Y-%m-%d %H:%M:%S UTC')"
             git push
           fi
+
+      - name: Push tables to MALISMF/parsers
+        env:
+          PARSERS_TOKEN: ${{ secrets.PARSERS_REPO_TOKEN }}
+        run: |
+          if [ -z "$PARSERS_TOKEN" ]; then
+            echo "PARSERS_REPO_TOKEN not set, skipping push to parsers repo"
+            exit 0
+          fi
+          REPO_URL="https://x-access-token:${PARSERS_TOKEN}@github.com/MALISMF/parsers.git"
+          git clone --depth 1 "$REPO_URL" parsers_repo
+          cd parsers_repo
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          rm -rf tables
+          cp -r ../tables tables
+          git add tables
+          if git diff --staged --quiet; then
+            echo "No changes to commit in parsers"
+          else
+            git commit -m "Tvil daily data - $(date +'%Y-%m-%d %H:%M:%S UTC')"
+            git push
+          fi

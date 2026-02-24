@@ -6,18 +6,14 @@ from pathlib import Path
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from collections import defaultdict
-
 from log_config import setup_logging, get_log_file_path, send_telegram_summary
 
-# Настройка stdout для корректного вывода Юникода
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
-
 logger = logging.getLogger(__name__)
 
 
 def _run_date():
-    """Дата запуска по RUN_TZ (по умолчанию Asia/Irkutsk)."""
     tz_name = os.environ.get("RUN_TZ", "Asia/Irkutsk")
     try:
         return datetime.now(ZoneInfo(tz_name)).date()
@@ -164,5 +160,6 @@ def generate_statistics(run_date=None):
 if __name__ == "__main__":
     run_date = _run_date()
     setup_logging(log_file=get_log_file_path(run_date))
+
     count = generate_statistics(run_date)
     send_telegram_summary(f"Tvil: статистика сформирована. Отелей в отчёте: {count or 0}. Дата: {run_date}.")
