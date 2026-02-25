@@ -63,6 +63,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Tvil daily data - $(date +'%Y-%m-%d %H:%M:%S UTC')"
+            git pull --rebase origin main
             git push
           fi
 
