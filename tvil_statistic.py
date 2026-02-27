@@ -81,14 +81,15 @@ def generate_statistics(run_date=None):
                 except (ValueError, TypeError):
                     pass
                 
-                # Находим минимальную цену
+                # Минимальная цена только среди номеров, где есть свободные (free_rooms > 0)
                 price = row.get('price', '')
-                if price:
+                if price and free_rooms_value > 0:
                     try:
                         price_value = float(price)
-                        current_min = rooms_stats[tvil_hotel_id]['min_price']
-                        if current_min is None or price_value < current_min:
-                            rooms_stats[tvil_hotel_id]['min_price'] = price_value
+                        if price_value > 0:
+                            current_min = rooms_stats[tvil_hotel_id]['min_price']
+                            if current_min is None or price_value < current_min:
+                                rooms_stats[tvil_hotel_id]['min_price'] = price_value
                     except (ValueError, TypeError):
                         pass
     except Exception as e:
