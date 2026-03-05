@@ -1,0 +1,12 @@
+2026-03-05 08:54:38 [INFO] __main__: Запуск парсера отелей...
+2026-03-05 08:54:38 [INFO] __main__: Даты бронирования: 06.03.2026 - 07.03.2026
+2026-03-05 08:54:38 [INFO] __main__: Перехожу на страницу tvil.ru...
+2026-03-05 08:54:45 [INFO] __main__: --- Страница 1 ---
+2026-03-05 08:54:45 [WARNING] __main__: Не удалось получить данные со страницы 1
+2026-03-05 08:54:45 [INFO] __main__: Всего собрано отелей со всех страниц: 0
+2026-03-05 08:54:45 [WARNING] __main__: Не удалось извлечь данные об отелях.
+2026-03-05 08:54:46 [INFO] __main__: Запуск парсера номеров...
+2026-03-05 08:54:46 [INFO] __main__: Даты бронирования: 06.03.2026 - 07.03.2026
+2026-03-05 08:54:46 [ERROR] __main__: Ошибка при чтении CSV /home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-05.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-05.csv'
+2026-03-05 08:54:46 [ERROR] __main__: Не удалось загрузить список отелей.
+2026-03-05 08:54:47 [ERROR] __main__: Ошибка при чтении /home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-05.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-05.csv'
