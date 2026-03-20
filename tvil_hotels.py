@@ -3,7 +3,6 @@ import time
 import sys
 import os
 import csv
-import json
 import logging
 from pathlib import Path
 from datetime import date, timedelta, datetime
@@ -33,9 +32,68 @@ class TvilHotelsDailyParser:
     def __init__(self):
         self.api_url = "https://tvil.ru/api/entities"
         self.base_url = "https://tvil.ru"
+        self.city_path = "/city/irkutskaya-oblast/"
         self.all_hotels = []
         self.current_dir = Path(__file__).parent
-    
+        self._meta_total = None # общее количество отелей по запросу
+        self._seen_ids = set()
+
+    def _build_page_url(self, arrival_date, departure_date, page_num=1):
+        """Строит URL страницы поиска с датами и 1 гостем.
+        Страница 1: /city/irkutskaya-oblast/?gp[entity_type][0]=1&...
+        Страница 2+: /city/irkutskaya-oblast/page2/?gp[entity_type][0]=1&...
+        """
+        params = urlencode({
+            "gp[entity_type][0]": "1",
+            "o[arrival]": arrival_date.strftime("%Y-%m-%d"),
+            "o[departure]": departure_date.strftime("%Y-%m-%d"),
+            "o[maleCount]": "1",
+        })
+        if page_num == 1:
+            return f"{self.base_url}{self.city_path}?{params}"
+        return f"{self.base_url}{self.city_path}page{page_num}/?{params}"
+
+    def _setup_response_interceptor(self, page):
+        """Перехват ответов от API Tvil (/api/entities)."""
+        def handle_response(response):
+            if (self.api_url in response.url
+                    and response.status == 200
+                    and response.request.method == "GET"
+                    and "entity_type" in response.url):
+                try:
+                    if "json" in response.headers.get("content-type", "").lower():
+                        json_data = response.json()
+                        if not isinstance(json_data, dict) or "data" not in json_data:
+                            return
+                        if self._meta_total is None:
+                            meta = json_data.get("meta", {})
+                            t = (meta.get("total") or meta.get("count")
+                                 or meta.get("totalCount"))
+                            if t is not None:
+                                self._meta_total = int(t)
+                                logger.info("meta.total = %s", self._meta_total)
+                        extracted = self._extract_hotels_from_json(json_data)
+                        if extracted:
+                            self.all_hotels.extend(extracted)
+                            logger.info(
+                                "Перехвачено %s отелей. Всего: %s",
+                                len(extracted), len(self.all_hotels),
+                            )
+                except Exception as e:
+                    msg = str(e)
+                    if ("No resource with given identifier" not in msg
+                            and "getResponseBody" not in msg
+                            and "Target page, context or browser has been closed" not in msg):
+                        logger.error("Ошибка разбора ответа API: %s", e)
+
+        page.on("response", handle_response)
+
+    def _wait_for_hotels(self, hotels_before, timeout=20):
+        """Ждёт появления новых отелей."""
+        start = time.time()
+        while len(self.all_hotels) == hotels_before and (time.time() - start) < timeout:
+            time.sleep(0.3)
+
     def get_all_hotels_list(self):
         """Основная функция для парсинга списка отелей на следующие 2 дня"""
         logger.info("Запуск парсера отелей...")
@@ -52,165 +110,74 @@ class TvilHotelsDailyParser:
                 viewport={'width': 1920, 'height': 1080}
             )
             page = context.new_page()
-            
-            logger.info("Перехожу на страницу tvil.ru...")
-            page.goto('https://tvil.ru/city/irkutskaya-oblast/?gp%5Bentity_type%5D%5B0%5D=1', wait_until='networkidle', timeout=30000)
-            page.wait_for_timeout(3000)
-            
-            # Получаем первый URL для запроса
-            first_url = self._build_api_url(arrival_date, departure_date)
-            
-            # Парсим все страницы с пагинацией
-            self._parse_all_pages_with_pagination(page, first_url)
-            
+            self._setup_response_interceptor(page)
+
+            page_num = 1
+            while True:
+                url = self._build_page_url(arrival_date, departure_date, page_num)
+                logger.info("--- Страница %s ---", page_num)
+                logger.info("URL: %s", url)
+
+                hotels_before = len(self.all_hotels)
+                page.goto(url, wait_until='networkidle', timeout=30000)
+                self._wait_for_hotels(hotels_before, timeout=15)
+
+                time.sleep(1)
+
+                if len(self.all_hotels) == hotels_before:
+                    logger.info("Страница %s не дала новых отелей. Конец.", page_num)
+                    break
+
+                if self._meta_total is not None and len(self.all_hotels) >= self._meta_total:
+                    logger.info(
+                        "Набрано %s, meta.total = %s",
+                        len(self.all_hotels), self._meta_total,
+                    )
+                    break
+
+                page_num += 1
+
             browser.close()
-        
+
         if self.all_hotels:
+            self._deduplicate_hotels()
+            if self._meta_total is not None and len(self.all_hotels) > self._meta_total:
+                logger.error(
+                    "Собрано %s отелей, что больше meta.total (%s) — возможна ошибка пагинации.",
+                    len(self.all_hotels), self._meta_total,
+                )
             self._save_to_csv()
             logger.info("Парсинг завершён. Всего обработано %s отелей.", len(self.all_hotels))
         else:
             logger.warning("Не удалось извлечь данные об отелях.")
-        
+
         return self.all_hotels
-    
-    def _build_api_url(self, arrival_date, departure_date):
-        """Построение URL для API запроса"""
-        params = {
-            'page[limit]': '20',
-            'page[offset]': '0',
-            'include': 'params,child_params,photos_t2,photos_t1,tooltip,services,inflect,characteristics',
-            'filter[generalParam][entity_type][]': '1',
-            'filter[type]': '',
-            'filter[geo]': '251',
-            'format[withNearEntities]': '1',
-            'format[withBusyEntities]': '1',
-            'format[withDisabledEntities]': '0',
-            'order[arrival]': arrival_date.strftime('%Y-%m-%d'),
-            'order[departure]': departure_date.strftime('%Y-%m-%d'),
-            'order[male]': '1'
-        }
-        query_string = urlencode(params, doseq=True)
-        return f"{self.api_url}?{query_string}"
-    
-    def _parse_all_pages_with_pagination(self, page, first_url):
-        """Парсинг всех страниц с пагинацией"""
-        current_url = first_url
-        page_number = 1
-        
-        while current_url:
-            logger.info("--- Страница %s ---", page_number)
-            
-            try:
-                json_data = self._make_api_request(page, current_url)
-                
-                if not json_data:
-                    logger.warning("Не удалось получить данные со страницы %s", page_number)
-                    break
-                
-                # Извлекаем отели из JSON
-                extracted_hotels = self._extract_hotels_from_json(json_data)
-                if extracted_hotels:
-                    self.all_hotels.extend(extracted_hotels)
-                    logger.info("Извлечено %s отелей. Всего: %s", len(extracted_hotels), len(self.all_hotels))
-                
-                # Проверяем наличие следующей страницы
-                links = json_data.get('links', {})
-                next_url = links.get('next')
-                
-                if next_url:
-                    # Преобразуем URL из /entities/ в /api/entities/ если нужно
-                    if '/entities/' in next_url and '/api/entities/' not in next_url:
-                        next_url = next_url.replace('/entities/', '/api/entities/')
-                    
-                    # Преобразуем относительный URL в полный
-                    if next_url.startswith('/'):
-                        current_url = f"{self.base_url}{next_url}"
-                    elif next_url.startswith('http'):
-                        current_url = next_url
-                    else:
-                        current_url = f"{self.base_url}/{next_url}"
-                    page_number += 1
-                    time.sleep(0.5)
-                else:
-                    logger.info("Достигнута последняя страница.")
-                    break
-                    
-            except Exception as e:
-                logger.error("Ошибка при парсинге страницы %s: %s", page_number, e)
-                break
-        
-        logger.info("Всего собрано отелей со всех страниц: %s", len(self.all_hotels))
-    
-    def _make_api_request(self, page, api_url):
-        """Выполнение API запроса через JavaScript на странице"""
-        api_url_js = json.dumps(api_url)
-        
-        try:
-            json_data = page.evaluate(f"""
-                async () => {{
-                    try {{
-                        const response = await fetch({api_url_js}, {{
-                            method: 'GET',
-                            headers: {{
-                                'accept': 'application/vnd.api+json',
-                                'accept-language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-                                'cache-control': 'no-cache',
-                                'derived-from': 'front_v3',
-                                'pragma': 'no-cache',
-                                'referer': 'https://tvil.ru/city/irkutskaya-oblast/?gp%5Bentity_type%5D%5B0%5D=1',
-                                'sec-fetch-dest': 'empty',
-                                'sec-fetch-mode': 'cors',
-                                'sec-fetch-site': 'same-origin'
-                            }},
-                            credentials: 'include'
-                        }});
-                        
-                        if (!response.ok) {{
-                            return {{ error: true, status: response.status }};
-                        }}
-                        
-                        return await response.json();
-                    }} catch (error) {{
-                        return {{ error: true, message: error.toString() }};
-                    }}
-                }}
-            """)
-            
-            if json_data and isinstance(json_data, dict) and json_data.get('error'):
-                return None
-            
-            return json_data
-        except Exception as e:
-            logger.error("Ошибка при выполнении API запроса: %s", e)
-            return None
-    
+
     def _extract_hotels_from_json(self, json_data):
         """Извлечение отелей из JSON ответа от API Tvil"""
         hotels_list = []
-        
+
         if not json_data or "data" not in json_data:
             return hotels_list
-        
+            
         data_array = json_data["data"]
-        
         if not isinstance(data_array, list):
             return hotels_list
-        
+
         for hotel in data_array:
             try:
                 attributes = hotel.get("attributes", {})
                 links = hotel.get("links", {})
-                
+
                 if not attributes:
                     continue
-                
+
                 hotel_id = hotel.get("id", "")
                 title = attributes.get("title", "")
-                
+
                 if not hotel_id or not title:
                     continue
-                
-                # Получаем URL из links.public
+
                 public_link = links.get("public", "")
                 if public_link:
                     if public_link.startswith('/'):
@@ -221,37 +188,54 @@ class TvilHotelsDailyParser:
                         url = f"{self.base_url}/{public_link}"
                 else:
                     url = ""
-                
+
                 hotel_data = {
                     "city": attributes.get("city_address", ""),
                     "tvil_hotel_id": hotel_id,
                     "name": title,
                     "address": attributes.get("address", ""),
                     "url": url,
-                    "rooms_number": str(attributes.get("rooms_total", ""))
+                    "rooms_number": str(attributes.get("rooms_total", "")),
                 }
-                
+
                 hotels_list.append(hotel_data)
-            except Exception as e:
+            except Exception:
                 continue
-        
+
         return hotels_list
-    
+
+    def _deduplicate_hotels(self):
+        """Удаление дубликатов по tvil_hotel_id, порядок сохраняется."""
+        seen = set()
+        unique = []
+        for h in self.all_hotels:
+            key = h.get("tvil_hotel_id") or ""
+            if key not in seen:
+                seen.add(key)
+                unique.append(h)
+        removed = len(self.all_hotels) - len(unique)
+        if removed:
+            logger.info("Убрано дубликатов: %s. Уникальных отелей: %s", removed, len(unique))
+        self.all_hotels = unique
+
     def _save_to_csv(self):
-        """Сохранение списка отелей в CSV файл"""
+        """Сохранение списка отелей в CSV файл (daily/hotels/YYYY-MM-DD.csv)."""
         if not self.all_hotels:
             return
-        
+
         run_date = _run_date()
         output_dir = self.current_dir / 'daily' / 'hotels'
         output_dir.mkdir(parents=True, exist_ok=True)
         csv_filename = output_dir / f'{run_date.isoformat()}.csv'
-        
+
         fieldnames = ['city', 'tvil_hotel_id', 'name', 'address', 'url', 'rooms_number']
-        
+
         try:
             with open(csv_filename, 'w', encoding='utf-8-sig', newline='') as csv_file:
-                writer = csv.DictWriter(csv_file, fieldnames=fieldnames, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+                writer = csv.DictWriter(
+                    csv_file, fieldnames=fieldnames,
+                    delimiter=',', quoting=csv.QUOTE_MINIMAL,
+                )
                 writer.writeheader()
                 for hotel in self.all_hotels:
                     writer.writerow(hotel)
@@ -259,10 +243,11 @@ class TvilHotelsDailyParser:
         except Exception as e:
             logger.error("Ошибка при сохранении CSV: %s", e)
 
+
 class TvilHotelsCatalog:
-    """Ведёт накопленный каталог всех когда-либо спаршенных отелей Tvil.
-    Файл: catalog/hotels.csv
-    При каждом запуске — добавляет новые отели и обновляет last_seen_date у существующих."""
+    """Ведёт накопленный каталог всех спарсенных отелей Tvil за всё время.
+    При каждом запуске — добавляет новые отели и обновляет last_seen_date у существующих.
+    Файл: catalog/hotels.csv"""
 
     FIELDNAMES = [
         'tvil_hotel_id', 'name', 'city', 'address', 'url', 'rooms_number',
@@ -340,7 +325,7 @@ class TvilHotelsCatalog:
         self._save(existing)
         logger.info("Каталог обновлён: всего %s, новых %s", len(existing), new_count)
         return len(existing), new_count
-    
+
 
 if __name__ == "__main__":
     run_date = _run_date()
