@@ -39,7 +39,7 @@ class TvilHotelsDailyParser:
         self._seen_ids = set()
 
     def _build_page_url(self, arrival_date, departure_date, page_num=1):
-        """Строит URL страницы поиска с датами и 1 гостем.
+        """Строит URL страницы поиска с датами и 1 гостем
         Страница 1: /city/irkutskaya-oblast/?gp[entity_type][0]=1&...
         Страница 2+: /city/irkutskaya-oblast/page2/?gp[entity_type][0]=1&...
         """
@@ -54,7 +54,7 @@ class TvilHotelsDailyParser:
         return f"{self.base_url}{self.city_path}page{page_num}/?{params}"
 
     def _setup_response_interceptor(self, page):
-        """Перехват ответов от API Tvil (/api/entities)."""
+        """Перехват ответов от API Tvil (/api/entities)"""
         def handle_response(response):
             if (self.api_url in response.url
                     and response.status == 200
@@ -89,7 +89,7 @@ class TvilHotelsDailyParser:
         page.on("response", handle_response)
 
     def _wait_for_hotels(self, hotels_before, timeout=20):
-        """Ждёт появления новых отелей."""
+        """Ждёт появления новых отелей"""
         start = time.time()
         while len(self.all_hotels) == hotels_before and (time.time() - start) < timeout:
             time.sleep(0.3)
@@ -116,7 +116,6 @@ class TvilHotelsDailyParser:
             while True:
                 url = self._build_page_url(arrival_date, departure_date, page_num)
                 logger.info("--- Страница %s ---", page_num)
-                logger.info("URL: %s", url)
 
                 hotels_before = len(self.all_hotels)
                 page.goto(url, wait_until='networkidle', timeout=30000)
@@ -194,6 +193,8 @@ class TvilHotelsDailyParser:
                     "tvil_hotel_id": hotel_id,
                     "name": title,
                     "address": attributes.get("address", ""),
+                    "latitude": str(attributes.get("latitude", "")),
+                    "longitude": str(attributes.get("longitude", "")),
                     "url": url,
                     "rooms_number": str(attributes.get("rooms_total", "")),
                 }
@@ -228,7 +229,7 @@ class TvilHotelsDailyParser:
         output_dir.mkdir(parents=True, exist_ok=True)
         csv_filename = output_dir / f'{run_date.isoformat()}.csv'
 
-        fieldnames = ['city', 'tvil_hotel_id', 'name', 'address', 'url', 'rooms_number']
+        fieldnames = ['city', 'tvil_hotel_id', 'name', 'address', 'latitude', 'longitude', 'url', 'rooms_number']
 
         try:
             with open(csv_filename, 'w', encoding='utf-8-sig', newline='') as csv_file:
@@ -250,7 +251,7 @@ class TvilHotelsCatalog:
     Файл: catalog/hotels.csv"""
 
     FIELDNAMES = [
-        'tvil_hotel_id', 'name', 'city', 'address', 'url', 'rooms_number',
+        'tvil_hotel_id', 'name', 'city', 'address', 'latitude', 'longitude', 'url', 'rooms_number',
         'first_seen_date', 'last_seen_date',
     ]
 
@@ -305,6 +306,8 @@ class TvilHotelsCatalog:
                     'name':           hotel.get('name', existing[hotel_id]['name']),
                     'city':           hotel.get('city', existing[hotel_id]['city']),
                     'address':        hotel.get('address', existing[hotel_id]['address']),
+                    'latitude':       hotel.get('latitude', existing[hotel_id].get('latitude', '')),
+                    'longitude':      hotel.get('longitude', existing[hotel_id].get('longitude', '')),
                     'url':            hotel.get('url', existing[hotel_id]['url']),
                     'rooms_number':   hotel.get('rooms_number', existing[hotel_id]['rooms_number']),
                     'last_seen_date': today,
@@ -315,6 +318,8 @@ class TvilHotelsCatalog:
                     'name':            hotel.get('name', ''),
                     'city':            hotel.get('city', ''),
                     'address':         hotel.get('address', ''),
+                    'latitude':        hotel.get('latitude', ''),
+                    'longitude':       hotel.get('longitude', ''),
                     'url':             hotel.get('url', ''),
                     'rooms_number':    hotel.get('rooms_number', ''),
                     'first_seen_date': today,
