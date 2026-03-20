@@ -243,7 +243,7 @@ class TvilHotelsDailyParser:
             return
         
         run_date = _run_date()
-        output_dir = self.current_dir / 'tables' / 'hotels'
+        output_dir = self.current_dir / 'daily' / 'hotels'
         output_dir.mkdir(parents=True, exist_ok=True)
         csv_filename = output_dir / f'{run_date.isoformat()}.csv'
         
@@ -259,10 +259,100 @@ class TvilHotelsDailyParser:
         except Exception as e:
             logger.error("Ошибка при сохранении CSV: %s", e)
 
+class TvilHotelsCatalog:
+    """Ведёт накопленный каталог всех когда-либо спаршенных отелей Tvil.
+    Файл: catalog/hotels.csv
+    При каждом запуске — добавляет новые отели и обновляет last_seen_date у существующих."""
+
+    FIELDNAMES = [
+        'tvil_hotel_id', 'name', 'city', 'address', 'url', 'rooms_number',
+        'first_seen_date', 'last_seen_date',
+    ]
+
+    def __init__(self):
+        self.current_dir = Path(__file__).parent
+        self.catalog_path = self.current_dir / 'catalog' / 'hotels.csv'
+
+    def _load_existing(self):
+        """Читает текущий каталог. Возвращает dict {tvil_hotel_id: row}."""
+        existing = {}
+        if not self.catalog_path.exists():
+            return existing
+        try:
+            with open(self.catalog_path, 'r', encoding='utf-8-sig', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    hotel_id = row.get('tvil_hotel_id', '')
+                    if hotel_id:
+                        existing[hotel_id] = row
+        except Exception as e:
+            logger.error("Ошибка при чтении каталога %s: %s", self.catalog_path, e)
+        return existing
+
+    def _save(self, hotels: dict):
+        """Сохраняет каталог на диск."""
+        self.catalog_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.catalog_path, 'w', encoding='utf-8-sig', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=self.FIELDNAMES, quoting=csv.QUOTE_MINIMAL)
+                writer.writeheader()
+                writer.writerows(hotels.values())
+            logger.info("Каталог сохранён: %s отелей → %s", len(hotels), self.catalog_path)
+        except Exception as e:
+            logger.error("Ошибка при сохранении каталога: %s", e)
+
+    def update(self, parsed_hotels: list):
+        """Обновляет каталог на основе свежего списка отелей.
+        - Новые отели добавляются с first_seen_date = сегодня.
+        - Существующие — обновляют поля и last_seen_date.
+        Возвращает (всего в каталоге, новых добавлено)."""
+        today = _run_date().isoformat()
+        existing = self._load_existing()
+
+        new_count = 0
+        for hotel in parsed_hotels:
+            hotel_id = str(hotel.get('tvil_hotel_id', ''))
+            if not hotel_id:
+                continue
+
+            if hotel_id in existing:
+                existing[hotel_id].update({
+                    'name':           hotel.get('name', existing[hotel_id]['name']),
+                    'city':           hotel.get('city', existing[hotel_id]['city']),
+                    'address':        hotel.get('address', existing[hotel_id]['address']),
+                    'url':            hotel.get('url', existing[hotel_id]['url']),
+                    'rooms_number':   hotel.get('rooms_number', existing[hotel_id]['rooms_number']),
+                    'last_seen_date': today,
+                })
+            else:
+                existing[hotel_id] = {
+                    'tvil_hotel_id':   hotel_id,
+                    'name':            hotel.get('name', ''),
+                    'city':            hotel.get('city', ''),
+                    'address':         hotel.get('address', ''),
+                    'url':             hotel.get('url', ''),
+                    'rooms_number':    hotel.get('rooms_number', ''),
+                    'first_seen_date': today,
+                    'last_seen_date':  today,
+                }
+                new_count += 1
+
+        self._save(existing)
+        logger.info("Каталог обновлён: всего %s, новых %s", len(existing), new_count)
+        return len(existing), new_count
+    
 
 if __name__ == "__main__":
     run_date = _run_date()
     setup_logging(log_file=get_log_file_path(run_date))
+
     parser = TvilHotelsDailyParser()
-    parser.get_all_hotels_list()
-    send_telegram_summary(f"Tvil: парсер отелей завершён. Отелей: {len(parser.all_hotels)}. Дата: {run_date}.")
+    result = parser.get_all_hotels_list()
+
+    catalog = TvilHotelsCatalog()
+    total, new_count = catalog.update(result)
+
+    send_telegram_summary(
+        f"Tvil: парсинг отелей завершён. Отелей: {len(result)}. "
+        f"Каталог: {total} всего, {new_count} новых. Дата: {run_date}."
+    )
