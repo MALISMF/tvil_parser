@@ -46,7 +46,7 @@ class TvilHotelsDailyParser:
             logger.info("Режим CI: увеличенные таймауты.")
 
     def _build_page_url(self, arrival_date, departure_date, page_num=1):
-        """Строит URL страницы поиска с датами и 1 гостем
+        """Строит URL страницы поиска с датами и 1 гостем.
         Страница 1: /city/irkutskaya-oblast/?gp[entity_type][0]=1&...
         Страница 2+: /city/irkutskaya-oblast/page2/?gp[entity_type][0]=1&...
         """
@@ -63,10 +63,11 @@ class TvilHotelsDailyParser:
     def _setup_response_interceptor(self, page):
         """Перехват ответов от API Tvil (/api/entities)"""
         def handle_response(response):
+            if self.api_url in response.url:
+                logger.info("API ответ: %s %s [%s]", response.request.method, response.url[:150], response.status)
             if (self.api_url in response.url
                     and response.status == 200
-                    and response.request.method == "GET"
-                    and "entity_type" in response.url):
+                    and response.request.method == "GET"):
                 try:
                     if "json" in response.headers.get("content-type", "").lower():
                         json_data = response.json()
@@ -121,6 +122,7 @@ class TvilHotelsDailyParser:
                 viewport={'width': 1920, 'height': 1080}
             )
             page = context.new_page()
+            page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             self._setup_response_interceptor(page)
 
             goto_timeout  = 90000 if self.ci else 90000
@@ -182,7 +184,7 @@ class TvilHotelsDailyParser:
 
         if not json_data or "data" not in json_data:
             return hotels_list
-            
+
         data_array = json_data["data"]
         if not isinstance(data_array, list):
             return hotels_list
