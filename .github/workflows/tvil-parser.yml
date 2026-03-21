@@ -80,12 +80,14 @@ jobs:
           cd parsers_repo
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
-          rm -rf tvil-daily
-          cp -r ../daily tvil-daily
-          git add tvil-daily
+          rm -rf tvil-data
+          mkdir -p tvil-data
+          cp -r ../daily tvil-data/daily
+          cp -r ../catalog tvil-data/catalog
+          git add tvil-data
           if git diff --staged --quiet; then
             echo "No changes to commit in parsers"
           else
-            git commit -m "Tvil daily data - $(date +'%Y-%m-%d %H:%M:%S UTC')"
+            git commit -m "Tvil data - $(date +'%Y-%m-%d %H:%M:%S UTC')"
             git push
           fi
