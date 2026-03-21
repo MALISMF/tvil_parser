@@ -38,11 +38,11 @@ class TvilRoomsDailyParser:
         self.current_dir = Path(__file__).parent
     
     def _read_hotels_from_csv(self, csv_path=None, run_date=None):
-        """Читает список отелей из CSV файла (по умолчанию tables/hotels/{date}.csv)."""
+        """Читает список отелей из CSV файла (по умолчанию daily/hotels/{date}.csv)."""
         if csv_path is None:
             if run_date is None:
                 run_date = _run_date()
-            csv_path = self.current_dir / 'tables' / 'hotels' / f'{run_date.isoformat()}.csv'
+            csv_path = self.current_dir / 'daily' / 'hotels' / f'{run_date.isoformat()}.csv'
         else:
             csv_path = Path(csv_path)
         
@@ -368,13 +368,13 @@ class TvilRoomsDailyParser:
         return self.all_rooms
     
     def _save_to_csv(self, run_date=None):
-        """Сохранение данных номеров в CSV файл (tables/rooms/YYYY-MM-DD.csv)."""
+        """Сохранение данных номеров в CSV файл (daily/rooms/YYYY-MM-DD.csv)."""
         if not self.all_rooms:
             return
         if run_date is None:
             run_date = _run_date()
         
-        output_dir = self.current_dir / 'tables' / 'rooms'
+        output_dir = self.current_dir / 'daily' / 'rooms'
         output_dir.mkdir(parents=True, exist_ok=True)
         csv_filename = output_dir / f'{run_date.isoformat()}.csv'
         

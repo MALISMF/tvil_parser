@@ -29,9 +29,9 @@ def generate_statistics(run_date=None):
     if run_date is None:
         run_date = _run_date()
     date_str = run_date.isoformat()
-    hotels_csv = current_dir / 'tables' / 'hotels' / f'{date_str}.csv'
-    rooms_csv = current_dir / 'tables' / 'rooms' / f'{date_str}.csv'
-    output_csv = current_dir / 'tables' / 'statistics' / f'{date_str}.csv'
+    hotels_csv = current_dir / 'daily' / 'hotels' / f'{date_str}.csv'
+    rooms_csv = current_dir / 'daily' / 'rooms' / f'{date_str}.csv'
+    output_csv = current_dir / 'daily' / 'statistics' / f'{date_str}.csv'
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     
     # Читаем данные об отелях
