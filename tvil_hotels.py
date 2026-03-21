@@ -28,6 +28,10 @@ def _run_date():
         return date.today()
 
 
+def _is_ci():
+    return os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("CI") == "true"
+
+
 class TvilHotelsDailyParser:
     def __init__(self):
         self.api_url = "https://tvil.ru/api/entities"
@@ -35,8 +39,11 @@ class TvilHotelsDailyParser:
         self.city_path = "/city/irkutskaya-oblast/"
         self.all_hotels = []
         self.current_dir = Path(__file__).parent
-        self._meta_total = None # общее количество отелей по запросу
+        self._meta_total = None  # общее количество отелей по запросу
         self._seen_ids = set()
+        self.ci = _is_ci()
+        if self.ci:
+            logger.info("Режим CI: увеличенные таймауты.")
 
     def _build_page_url(self, arrival_date, departure_date, page_num=1):
         """Строит URL страницы поиска с датами и 1 гостем
@@ -100,9 +107,9 @@ class TvilHotelsDailyParser:
         today = _run_date()
         arrival_date = today + timedelta(days=1)
         departure_date = today + timedelta(days=2)
-        
+
         logger.info("Даты бронирования: %s - %s", arrival_date.strftime('%d.%m.%Y'), departure_date.strftime('%d.%m.%Y'))
-        
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(
@@ -112,15 +119,28 @@ class TvilHotelsDailyParser:
             page = context.new_page()
             self._setup_response_interceptor(page)
 
+            goto_timeout  = 90000 if self.ci else 90000
+            wait_timeout  = 60    if self.ci else 60
+
             page_num = 1
             while True:
                 url = self._build_page_url(arrival_date, departure_date, page_num)
-                logger.info("--- Страница %s ---", page_num)
+                logger.info("--- Страница %s --- %s", page_num, url)
 
                 hotels_before = len(self.all_hotels)
-                page.goto(url, wait_until='networkidle', timeout=30000)
-                self._wait_for_hotels(hotels_before, timeout=15)
 
+                try:
+                    page.goto(url, wait_until='networkidle', timeout=goto_timeout)
+                except Exception as e:
+                    logger.warning("[Страница %s] goto: %s", page_num, e)
+
+                if self.ci:
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=45000)
+                    except Exception:
+                        pass
+
+                self._wait_for_hotels(hotels_before, timeout=wait_timeout)
                 time.sleep(1)
 
                 if len(self.all_hotels) == hotels_before:
