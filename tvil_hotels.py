@@ -71,7 +71,9 @@ class TvilHotelsDailyParser:
                 try:
                     if "json" in response.headers.get("content-type", "").lower():
                         json_data = response.json()
+                        logger.info("Interceptor: json получен, тип=%s, ключи=%s", type(json_data).__name__, list(json_data.keys()) if isinstance(json_data, dict) else "не dict")
                         if not isinstance(json_data, dict) or "data" not in json_data:
+                            logger.info("Interceptor: нет data в ответе")
                             return
                         if self._meta_total is None:
                             meta = json_data.get("meta", {})
@@ -88,6 +90,7 @@ class TvilHotelsDailyParser:
                                 len(extracted), len(self.all_hotels),
                             )
                 except Exception as e:
+                    logger.error("Interceptor exception: %s", e)
                     msg = str(e)
                     if ("No resource with given identifier" not in msg
                             and "getResponseBody" not in msg
@@ -96,11 +99,11 @@ class TvilHotelsDailyParser:
 
         page.on("response", handle_response)
 
-    def _wait_for_hotels(self, hotels_before, timeout=20):
-        """Ждёт появления новых отелей"""
+    def _wait_for_hotels(self, page, hotels_before, timeout=20):
+        """Ждёт появления новых отелей, качая Playwright event loop."""
         start = time.time()
         while len(self.all_hotels) == hotels_before and (time.time() - start) < timeout:
-            time.sleep(0.3)
+            page.wait_for_timeout(300)
 
     def get_all_hotels_list(self):
         """Основная функция для парсинга списка отелей на следующие 2 дня"""
@@ -139,6 +142,8 @@ class TvilHotelsDailyParser:
                     page.goto(url, wait_until='networkidle', timeout=goto_timeout)
                 except Exception as e:
                     logger.warning("[Страница %s] goto: %s", page_num, e)
+                    # Даём event loop время обработать pending ответы
+                    time.sleep(3 if self.ci else 1)
 
                 if self.ci:
                     try:
@@ -146,7 +151,7 @@ class TvilHotelsDailyParser:
                     except Exception:
                         pass
 
-                self._wait_for_hotels(hotels_before, timeout=wait_timeout)
+                self._wait_for_hotels(page, hotels_before, timeout=wait_timeout)
                 time.sleep(1)
 
                 if len(self.all_hotels) == hotels_before:
