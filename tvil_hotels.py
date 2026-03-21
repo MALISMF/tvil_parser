@@ -125,8 +125,8 @@ class TvilHotelsDailyParser:
             page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             self._setup_response_interceptor(page)
 
-            goto_timeout  = 90000 if self.ci else 90000
-            wait_timeout  = 60    if self.ci else 60
+            goto_timeout  = 90000 if self.ci else 60000
+            wait_timeout  = 45    if self.ci else 30
 
             page_num = 1
             while True:
@@ -147,6 +147,13 @@ class TvilHotelsDailyParser:
                         pass
 
                 self._wait_for_hotels(hotels_before, timeout=wait_timeout)
+
+                # Запасное ожидание — ответ может прийти чуть позже таймаута goto
+                if len(self.all_hotels) == hotels_before:
+                    extra = 15 if self.ci else 5
+                    logger.info("Дополнительное ожидание %s сек...", extra)
+                    self._wait_for_hotels(hotels_before, timeout=extra)
+
                 time.sleep(1)
 
                 if len(self.all_hotels) == hotels_before:
