@@ -63,17 +63,13 @@ class TvilHotelsDailyParser:
     def _setup_response_interceptor(self, page):
         """Перехват ответов от API Tvil (/api/entities)"""
         def handle_response(response):
-            if self.api_url in response.url:
-                logger.info("API ответ: %s %s [%s]", response.request.method, response.url[:150], response.status)
             if (self.api_url in response.url
                     and response.status == 200
                     and response.request.method == "GET"):
                 try:
                     if "json" in response.headers.get("content-type", "").lower():
                         json_data = response.json()
-                        logger.info("Interceptor: json получен, тип=%s, ключи=%s", type(json_data).__name__, list(json_data.keys()) if isinstance(json_data, dict) else "не dict")
                         if not isinstance(json_data, dict) or "data" not in json_data:
-                            logger.info("Interceptor: нет data в ответе")
                             return
                         if self._meta_total is None:
                             meta = json_data.get("meta", {})
@@ -90,7 +86,6 @@ class TvilHotelsDailyParser:
                                 len(extracted), len(self.all_hotels),
                             )
                 except Exception as e:
-                    logger.error("Interceptor exception: %s", e)
                     msg = str(e)
                     if ("No resource with given identifier" not in msg
                             and "getResponseBody" not in msg
