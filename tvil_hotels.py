@@ -125,8 +125,8 @@ class TvilHotelsDailyParser:
             page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             self._setup_response_interceptor(page)
 
-            goto_timeout  = 90000 if self.ci else 60000
-            wait_timeout  = 75    if self.ci else 30
+            goto_timeout  = 120000 if self.ci else 60000
+            wait_timeout  = 120   if self.ci else 30
 
             page_num = 1
             while True:
