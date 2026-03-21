@@ -36,3 +36,16 @@
 2026-03-21 06:59:46 [ERROR] __main__: Ошибка при чтении CSV /home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-21.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-21.csv'
 2026-03-21 06:59:47 [ERROR] __main__: Не удалось загрузить список отелей.
 2026-03-21 06:59:48 [ERROR] __main__: Ошибка при чтении /home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-21.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-21.csv'
+2026-03-21 07:06:59 [INFO] __main__: Режим CI: увеличенные таймауты.
+2026-03-21 07:06:59 [INFO] __main__: Запуск парсера отелей...
+2026-03-21 07:06:59 [INFO] __main__: Даты бронирования: 22.03.2026 - 23.03.2026
+2026-03-21 07:07:00 [INFO] __main__: --- Страница 1 --- https://tvil.ru/city/irkutskaya-oblast/?gp%5Bentity_type%5D%5B0%5D=1&o%5Barrival%5D=2026-03-22&o%5Bdeparture%5D=2026-03-23&o%5BmaleCount%5D=1
+2026-03-21 07:08:04 [INFO] __main__: Страница 1 не дала новых отелей. Конец.
+2026-03-21 07:08:04 [WARNING] __main__: Не удалось извлечь данные об отелях.
+2026-03-21 07:08:04 [INFO] __main__: Каталог сохранён: 69 отелей → /home/runner/work/tvil_parser/tvil_parser/catalog/hotels.csv
+2026-03-21 07:08:04 [INFO] __main__: Каталог обновлён: всего 69, новых 0
+2026-03-21 07:08:05 [INFO] __main__: Запуск парсера номеров...
+2026-03-21 07:08:05 [INFO] __main__: Даты бронирования: 22.03.2026 - 23.03.2026
+2026-03-21 07:08:05 [ERROR] __main__: Ошибка при чтении CSV /home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-21.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-21.csv'
+2026-03-21 07:08:05 [ERROR] __main__: Не удалось загрузить список отелей.
+2026-03-21 07:08:06 [ERROR] __main__: Ошибка при чтении /home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-21.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/tables/hotels/2026-03-21.csv'
