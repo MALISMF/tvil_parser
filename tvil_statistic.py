@@ -125,11 +125,11 @@ def generate_statistics(run_date=None):
         statistics.append({
             'tvil_hotel_id': tvil_hotel_id,
             'name': hotel_info.get('name', ''),
+            'date': collection_date,
             'rooms_num': str(rooms_num),
             'free_rooms_amount': str(free_rooms_amount),
             'max_capacity': str(max_capacity),
             'available_rooms_percent': str(available_rooms_percent),
-            'date': collection_date,
             'min_price': min_price_str
         })
     
@@ -137,11 +137,11 @@ def generate_statistics(run_date=None):
     fieldnames = [
         'tvil_hotel_id',
         'name',
+        'date',
         'rooms_num',
         'free_rooms_amount',
         'max_capacity',
         'available_rooms_percent',
-        'date',
         'min_price'
     ]
     
