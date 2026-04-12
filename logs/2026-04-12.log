@@ -11,3 +11,16 @@
 2026-04-12 09:00:29 [ERROR] __main__: Ошибка при чтении CSV /home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-12.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-12.csv'
 2026-04-12 09:00:29 [ERROR] __main__: Не удалось загрузить список отелей.
 2026-04-12 09:00:30 [ERROR] __main__: Ошибка при чтении /home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-12.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-12.csv'
+2026-04-12 09:30:56 [INFO] __main__: Режим CI: увеличенные таймауты.
+2026-04-12 09:30:56 [INFO] __main__: Запуск парсера отелей...
+2026-04-12 09:30:56 [INFO] __main__: Даты бронирования: 13.04.2026 - 14.04.2026
+2026-04-12 09:30:58 [INFO] __main__: --- Страница 1 --- https://tvil.ru/city/irkutskaya-oblast/?gp%5Bentity_type%5D%5B0%5D=1&o%5Barrival%5D=2026-04-13&o%5Bdeparture%5D=2026-04-14&o%5BmaleCount%5D=1
+2026-04-12 09:33:02 [INFO] __main__: Страница 1 не дала новых отелей.
+2026-04-12 09:33:02 [WARNING] __main__: Не удалось извлечь данные об отелях.
+2026-04-12 09:33:02 [INFO] __main__: Каталог сохранён: 69 отелей → /home/runner/work/tvil_parser/tvil_parser/catalog/hotels.csv
+2026-04-12 09:33:02 [INFO] __main__: Каталог обновлён: всего 69, новых 0
+2026-04-12 09:33:03 [INFO] __main__: Запуск парсера номеров...
+2026-04-12 09:33:03 [INFO] __main__: Даты бронирования: 13.04.2026 - 14.04.2026
+2026-04-12 09:33:03 [ERROR] __main__: Ошибка при чтении CSV /home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-12.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-12.csv'
+2026-04-12 09:33:04 [ERROR] __main__: Не удалось загрузить список отелей.
+2026-04-12 09:33:05 [ERROR] __main__: Ошибка при чтении /home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-12.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-12.csv'
