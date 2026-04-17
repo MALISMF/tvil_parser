@@ -122,7 +122,7 @@ def generate_statistics(run_date=None):
         if free_rooms_amount > rooms_num > 0:
             logger.warning(
                 "free_rooms_amount (%s) > rooms_num (%s) для %s — используем effective_rooms_num=%s",
-                free_rooms_amount, rooms_num, ota_hotel_id, effective_rooms_num,
+                free_rooms_amount, rooms_num, tvil_hotel_id, effective_rooms_num,
             )
         # Форматируем минимальную цену
         min_price_str = f"{min_price:.2f}" if min_price is not None else ""
