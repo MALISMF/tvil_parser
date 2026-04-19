@@ -1,0 +1,13 @@
+2026-04-19 09:01:43 [INFO] __main__: Режим CI: увеличенные таймауты.
+2026-04-19 09:01:43 [INFO] __main__: Запуск парсера отелей...
+2026-04-19 09:01:43 [INFO] __main__: Даты бронирования: 20.04.2026 - 21.04.2026
+2026-04-19 09:01:45 [INFO] __main__: --- Страница 1 --- https://tvil.ru/city/irkutskaya-oblast/?gp%5Bentity_type%5D%5B0%5D=1&o%5Barrival%5D=2026-04-20&o%5Bdeparture%5D=2026-04-21&o%5BmaleCount%5D=1
+2026-04-19 09:03:49 [INFO] __main__: Страница 1 не дала новых отелей.
+2026-04-19 09:03:49 [WARNING] __main__: Не удалось извлечь данные об отелях.
+2026-04-19 09:03:49 [INFO] __main__: Каталог сохранён: 70 отелей → /home/runner/work/tvil_parser/tvil_parser/catalog/hotels.csv
+2026-04-19 09:03:49 [INFO] __main__: Каталог обновлён: всего 70, новых 0
+2026-04-19 09:03:50 [INFO] __main__: Запуск парсера номеров...
+2026-04-19 09:03:50 [INFO] __main__: Даты бронирования: 20.04.2026 - 21.04.2026
+2026-04-19 09:03:50 [ERROR] __main__: Ошибка при чтении CSV /home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-19.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-19.csv'
+2026-04-19 09:03:51 [ERROR] __main__: Не удалось загрузить список отелей.
+2026-04-19 09:03:52 [ERROR] __main__: Ошибка при чтении /home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-19.csv: [Errno 2] No such file or directory: '/home/runner/work/tvil_parser/tvil_parser/daily/hotels/2026-04-19.csv'
