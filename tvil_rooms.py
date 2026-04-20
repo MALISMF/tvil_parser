@@ -243,18 +243,24 @@ class TvilRoomsDailyParser:
         
         # Обрабатываем остальные элементы (номера)
         for room_item in data_array[1:]:
+            room_id = None 
+            price = None 
+            free_rooms = None 
+            all_rooms = None 
+            room_name = None 
+            room_capacity = None 
+
             try:
                 room_id = room_item.get('id', '')
                 attributes = room_item.get('attributes', {})
                 
                 # Получаем данные из calculate
                 total_price = attributes.get('total_price')
-                price = str(total_price) if total_price is not None else "0"
+                price = str(total_price) if total_price is not None else None 
                 
                 rooms_data_attr = attributes.get('rooms_data', {})
                 free_count = rooms_data_attr.get('free_count')
-                free_rooms = str(free_count) if free_count is not None else "0"
-                
+                free_rooms = str(free_count) if free_count is not None else None  
                 text = rooms_data_attr.get('text', '')
                 all_rooms = str(self._extract_all_rooms(text))
                 
@@ -262,19 +268,19 @@ class TvilRoomsDailyParser:
                 description = descriptions.get(str(room_id), '')
                 room_name = description
                 room_capacity = self._parse_room_capacity(description)
-                
-                rooms_data.append({
-                    "tvil_hotel_id": tvil_hotel_id,
-                    "room_name": room_name,
-                    "room_id": room_id,
-                    "free_rooms": free_rooms,
-                    "all_rooms": all_rooms,
-                    "room_capacity": room_capacity,
-                    "price": price,
-                    "url": hotel_url
-                })
             except Exception as e:
-                continue
+                logger.warning("Ошибка при извлечении данных номера (tvil_hotel_id=%s): %s", tvil_hotel_id, e) 
+            
+            rooms_data.append({  
+                "tvil_hotel_id": tvil_hotel_id,
+                "room_name": room_name,
+                "room_id": room_id,
+                "free_rooms": free_rooms,
+                "all_rooms": all_rooms,
+                "room_capacity": room_capacity,
+                "price": price,
+                "url": hotel_url
+            })
         
         return rooms_data
     
